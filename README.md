@@ -35,15 +35,15 @@ A real-time multi-bot monitoring and human detection system designed for disaste
 
 ```
 karan haz bots copy/
-├── backend.py           # Flask server with WebSocket & APIs
-├── simulate_bots.py     # Bot simulator for testing
-├── lora-bot-monitor.html# Dashboard frontend
-├── aiml.py              # Folder-based human detection
-├── human_detector.py    # File-picker human detection
-├── mix_audio.py         # Audio mixing utility
-├── requirements.txt     # Python dependencies
-├── arduino file.cpp     #arduino file
-└── README.md           # This file
+├── backend.py            # Flask server with WebSocket & APIs
+├── simulate_bots.py      # Bot simulator for testing
+├── lora-bot-monitor.html # Dashboard frontend
+├── aiml.py               # Folder-based human detection
+├── human_detector.py     # File-picker human detection
+├── mix_audio.py          # Audio mixing utility
+├── requirements.txt      # Python dependencies
+├── arduino.cpp           #arduino file
+└── README.md             # This file
 ```
 
 ---
