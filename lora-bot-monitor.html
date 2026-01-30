@@ -1,0 +1,2187 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🤖 LoRa Bot Monitor - Real-Time Dashboard</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap"
+        rel="stylesheet">
+
+    <!-- Leaflet CSS & JS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+        integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --primary: #6366f1;
+            --primary-light: #818cf8;
+            --primary-dark: #4f46e5;
+            --secondary: #22d3ee;
+            --accent: #f472b6;
+            --success: #10b981;
+            --warning: #f59e0b;
+            --danger: #ef4444;
+            --bg-dark: #0f172a;
+            --bg-card: #1e293b;
+            --bg-hover: #334155;
+            --text-primary: #f1f5f9;
+            --text-secondary: #94a3b8;
+            --border: rgba(148, 163, 184, 0.1);
+            --glow-primary: rgba(99, 102, 241, 0.4);
+            --glow-success: rgba(16, 185, 129, 0.4);
+            --glow-danger: rgba(239, 68, 68, 0.4);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: var(--bg-dark);
+            color: var(--text-primary);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        /* Animated background */
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background:
+                radial-gradient(ellipse at 20% 20%, rgba(99, 102, 241, 0.15) 0%, transparent 50%),
+                radial-gradient(ellipse at 80% 80%, rgba(34, 211, 238, 0.1) 0%, transparent 50%),
+                radial-gradient(ellipse at 50% 50%, rgba(244, 114, 182, 0.05) 0%, transparent 70%);
+            z-index: -1;
+            animation: bgPulse 15s ease-in-out infinite;
+        }
+
+        @keyframes bgPulse {
+
+            0%,
+            100% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.7;
+            }
+        }
+
+        /* Welcome Overlay */
+        .welcome-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, var(--bg-dark) 0%, #1a1f35 100%);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+            animation: fadeIn 0.8s ease-out;
+        }
+
+        .welcome-overlay.hidden {
+            animation: fadeOut 0.5s ease-out forwards;
+            pointer-events: none;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+            }
+
+            to {
+                opacity: 1;
+            }
+        }
+
+        @keyframes fadeOut {
+            from {
+                opacity: 1;
+            }
+
+            to {
+                opacity: 0;
+            }
+        }
+
+        .welcome-content {
+            text-align: center;
+            max-width: 600px;
+            padding: 40px;
+        }
+
+        .welcome-logo {
+            font-size: 5rem;
+            margin-bottom: 20px;
+            animation: float 3s ease-in-out infinite;
+        }
+
+        @keyframes float {
+
+            0%,
+            100% {
+                transform: translateY(0);
+            }
+
+            50% {
+                transform: translateY(-10px);
+            }
+        }
+
+        .welcome-content h1 {
+            font-size: 2.5rem;
+            font-weight: 800;
+            background: linear-gradient(135deg, var(--primary-light), var(--secondary));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 16px;
+        }
+
+        .welcome-content p {
+            font-size: 1.1rem;
+            color: var(--text-secondary);
+            line-height: 1.6;
+            margin-bottom: 32px;
+        }
+
+        .feature-badges {
+            display: flex;
+            gap: 12px;
+            justify-content: center;
+            flex-wrap: wrap;
+            margin-bottom: 40px;
+        }
+
+        .badge {
+            background: rgba(99, 102, 241, 0.1);
+            border: 1px solid var(--primary);
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            font-weight: 500;
+            color: var(--primary-light);
+            transition: all 0.3s ease;
+        }
+
+        .badge:hover {
+            background: rgba(99, 102, 241, 0.2);
+            transform: translateY(-2px);
+        }
+
+        .start-btn {
+            padding: 18px 48px;
+            font-size: 1.2rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+            border: none;
+            border-radius: 50px;
+            color: white;
+            cursor: pointer;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            box-shadow: 0 10px 40px var(--glow-primary);
+            transition: all 0.3s ease;
+        }
+
+        .start-btn:hover {
+            transform: translateY(-3px) scale(1.02);
+            box-shadow: 0 15px 50px var(--glow-primary);
+        }
+
+        /* Main Container */
+        .container {
+            max-width: 1600px;
+            margin: 0 auto;
+            padding: 24px;
+        }
+
+        /* Header */
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px 28px;
+            background: var(--bg-card);
+            border-radius: 20px;
+            border: 1px solid var(--border);
+            margin-bottom: 24px;
+            backdrop-filter: blur(10px);
+        }
+
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .header-logo {
+            font-size: 2.5rem;
+        }
+
+        .header h1 {
+            font-size: 1.5rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, #fff, var(--secondary));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .header p {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            margin-top: 2px;
+        }
+
+        .connection-status {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 12px 20px;
+            background: rgba(239, 68, 68, 0.1);
+            border: 1px solid var(--danger);
+            border-radius: 30px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+
+        .connection-status.connected {
+            background: rgba(16, 185, 129, 0.1);
+            border-color: var(--success);
+        }
+
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: var(--danger);
+            animation: pulse 2s infinite;
+        }
+
+        .connection-status.connected .status-dot {
+            background: var(--success);
+        }
+
+        @keyframes pulse {
+
+            0%,
+            100% {
+                opacity: 1;
+                transform: scale(1);
+            }
+
+            50% {
+                opacity: 0.6;
+                transform: scale(1.1);
+            }
+        }
+
+        /* Stats Cards Grid */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(6, 1fr);
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+
+        .stat-card {
+            background: var(--bg-card);
+            border-radius: 16px;
+            padding: 20px;
+            border: 1px solid var(--border);
+            position: relative;
+            overflow: hidden;
+            transition: all 0.3s ease;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-4px);
+            border-color: var(--primary);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+        }
+
+        .stat-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 3px;
+            background: linear-gradient(90deg, var(--primary), var(--secondary));
+        }
+
+        .stat-icon {
+            font-size: 1.8rem;
+            margin-bottom: 12px;
+        }
+
+        .stat-label {
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--text-secondary);
+            margin-bottom: 8px;
+        }
+
+        .stat-value {
+            font-size: 1.8rem;
+            font-weight: 800;
+            color: var(--text-primary);
+            display: flex;
+            align-items: baseline;
+            gap: 4px;
+        }
+
+        .stat-unit {
+            font-size: 0.9rem;
+            font-weight: 500;
+            color: var(--text-secondary);
+        }
+
+        .stat-sublabel {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            margin-top: 4px;
+        }
+
+        /* Main Layout */
+        .main-layout {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 24px;
+            margin-bottom: 24px;
+        }
+
+        /* Data Panel */
+        .data-panel {
+            background: var(--bg-card);
+            border-radius: 20px;
+            border: 1px solid var(--border);
+            padding: 24px;
+        }
+
+        .panel-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 16px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .panel-title {
+            font-size: 1.1rem;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .panel-title span {
+            color: var(--primary-light);
+        }
+
+        /* Updated GPS Map Container for Leaflet */
+        .gps-map-container {
+            border-radius: 16px;
+            height: 350px;
+            border: 1px solid var(--border);
+            margin-bottom: 20px;
+            position: relative;
+            overflow: hidden;
+            background: #0f172a;
+        }
+
+        #map {
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+        }
+
+        /* Custom Leaflet Dark Mode tweaks if needed */
+        .leaflet-container {
+            background: #0f172a;
+        }
+
+        .gps-coords-overlay {
+            position: absolute;
+            bottom: 16px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(15, 23, 42, 0.9);
+            padding: 8px 20px;
+            border-radius: 30px;
+            z-index: 1000;
+            display: flex;
+            gap: 20px;
+            border: 1px solid var(--primary);
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(5px);
+        }
+
+        .gps-coords-overlay div {
+            font-family: 'Monaco', 'Consolas', monospace;
+            font-size: 0.9rem;
+            color: var(--text-primary);
+            display: flex;
+            gap: 8px;
+        }
+
+        .gps-coords-overlay span {
+            color: var(--secondary);
+            font-weight: 700;
+        }
+
+        /* Data Rows */
+        .data-rows {
+            display: grid;
+            gap: 12px;
+        }
+
+        .data-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 14px 18px;
+            background: var(--bg-hover);
+            border-radius: 12px;
+            transition: all 0.2s ease;
+        }
+
+        .data-row:hover {
+            background: rgba(99, 102, 241, 0.1);
+            transform: translateX(4px);
+        }
+
+        .data-row-left {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .data-row-icon {
+            font-size: 1.2rem;
+        }
+
+        .data-row-label {
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+        }
+
+        .data-row-value {
+            font-size: 1rem;
+            font-weight: 700;
+            color: var(--text-primary);
+            font-family: 'Monaco', 'Consolas', monospace;
+        }
+
+        /* Controls Panel */
+        .controls-panel {
+            background: var(--bg-card);
+            border-radius: 20px;
+            border: 1px solid var(--border);
+            padding: 24px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .control-section {
+            padding-bottom: 20px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .control-section:last-child {
+            border-bottom: none;
+            padding-bottom: 0;
+        }
+
+        .control-label {
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--primary-light);
+            margin-bottom: 16px;
+            font-weight: 600;
+        }
+
+        /* Last Update Time */
+        .last-update {
+            background: linear-gradient(135deg, rgba(99, 102, 241, 0.1), rgba(34, 211, 238, 0.1));
+            border-radius: 12px;
+            padding: 16px;
+            text-align: center;
+        }
+
+        .last-update-label {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 8px;
+        }
+
+        .last-update-time {
+            font-size: 1.1rem;
+            font-weight: 700;
+            color: var(--secondary);
+            font-family: 'Monaco', 'Consolas', monospace;
+        }
+
+        /* Device Info */
+        .device-info {
+            background: var(--bg-hover);
+            border-radius: 12px;
+            padding: 16px;
+        }
+
+        .device-info-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+        }
+
+        .device-info-row:not(:last-child) {
+            border-bottom: 1px solid var(--border);
+        }
+
+        .device-info-label {
+            color: var(--text-secondary);
+            font-size: 0.85rem;
+        }
+
+        .device-info-value {
+            color: var(--text-primary);
+            font-weight: 600;
+            font-size: 0.85rem;
+        }
+
+        /* Data History */
+        .history-log {
+            max-height: 200px;
+            overflow-y: auto;
+            background: var(--bg-hover);
+            border-radius: 12px;
+            padding: 12px;
+        }
+
+        .history-log::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .history-log::-webkit-scrollbar-thumb {
+            background: var(--primary);
+            border-radius: 3px;
+        }
+
+        .history-item {
+            padding: 10px 12px;
+            border-radius: 8px;
+            margin-bottom: 8px;
+            background: var(--bg-card);
+            font-size: 0.8rem;
+            animation: slideIn 0.3s ease;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateX(-10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+
+        .history-timestamp {
+            color: var(--secondary);
+            font-family: 'Monaco', 'Consolas', monospace;
+            font-size: 0.75rem;
+            margin-bottom: 4px;
+        }
+
+        .history-data {
+            color: var(--text-secondary);
+        }
+
+        /* Charts Grid */
+        .charts-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 24px;
+            margin-bottom: 24px;
+        }
+
+        .chart-container {
+            background: var(--bg-card);
+            border-radius: 20px;
+            border: 1px solid var(--border);
+            padding: 24px;
+        }
+
+        .chart-title {
+            font-size: 1rem;
+            font-weight: 700;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .chart-wrapper {
+            height: 250px;
+            position: relative;
+        }
+
+        /* Acoustic Section */
+        .acoustic-section {
+            background: var(--bg-card);
+            border-radius: 20px;
+            border: 1px solid var(--border);
+            padding: 24px;
+            margin-bottom: 24px;
+        }
+
+        .acoustic-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .acoustic-visualizer {
+            display: flex;
+            align-items: flex-end;
+            justify-content: space-between;
+            gap: 4px;
+            height: 80px;
+            padding: 16px;
+            background: var(--bg-hover);
+            border-radius: 12px;
+        }
+
+        .acoustic-bar {
+            flex: 1;
+            background: linear-gradient(180deg, var(--primary), var(--secondary));
+            border-radius: 4px 4px 0 0;
+            transition: height 0.2s ease;
+            min-height: 8px;
+        }
+
+        .activity-badge {
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            background: rgba(100, 116, 139, 0.3);
+            color: var(--text-secondary);
+        }
+
+        .activity-badge.active {
+            background: rgba(16, 185, 129, 0.2);
+            color: var(--success);
+            animation: pulse 2s infinite;
+        }
+
+        /* Footer */
+        .footer {
+            text-align: center;
+            padding: 20px;
+            color: var(--text-secondary);
+            font-size: 0.85rem;
+        }
+
+        /* No Data Message */
+        .no-data-message {
+            text-align: center;
+            padding: 40px;
+            color: var(--text-secondary);
+        }
+
+        .no-data-message .icon {
+            font-size: 4rem;
+            margin-bottom: 16px;
+            opacity: 0.5;
+        }
+
+        .no-data-message h3 {
+            font-size: 1.2rem;
+            margin-bottom: 8px;
+            color: var(--text-primary);
+        }
+
+        /* Alert Animation for New Data */
+        .stat-card.updated {
+            animation: dataFlash 0.5s ease;
+        }
+
+        @keyframes dataFlash {
+            0% {
+                border-color: var(--success);
+                box-shadow: 0 0 20px var(--glow-success);
+            }
+
+            100% {
+                border-color: var(--border);
+                box-shadow: none;
+            }
+        }
+
+        /* Human Detection Section */
+        .human-detection-section {
+            background: var(--bg-card);
+            border-radius: 20px;
+            border: 1px solid var(--border);
+            padding: 24px;
+            margin-bottom: 24px;
+        }
+
+        .detection-content {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 24px;
+        }
+
+        .upload-zone {
+            border: 2px dashed var(--primary);
+            border-radius: 16px;
+            padding: 40px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            background: rgba(99, 102, 241, 0.05);
+        }
+
+        .upload-zone:hover {
+            background: rgba(99, 102, 241, 0.1);
+            border-color: var(--primary-light);
+            transform: translateY(-2px);
+        }
+
+        .upload-zone.dragover {
+            background: rgba(99, 102, 241, 0.2);
+            border-color: var(--secondary);
+            box-shadow: 0 0 30px var(--glow-primary);
+        }
+
+        .upload-zone-icon {
+            font-size: 3rem;
+            margin-bottom: 16px;
+        }
+
+        .upload-zone h3 {
+            font-size: 1.1rem;
+            margin-bottom: 8px;
+            color: var(--text-primary);
+        }
+
+        .upload-zone p {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            margin-bottom: 16px;
+        }
+
+        .upload-btn {
+            padding: 12px 24px;
+            background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+            border: none;
+            border-radius: 30px;
+            color: white;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .upload-btn:hover {
+            transform: scale(1.05);
+            box-shadow: 0 5px 20px var(--glow-primary);
+        }
+
+        .detection-result {
+            background: var(--bg-hover);
+            border-radius: 16px;
+            padding: 30px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            min-height: 200px;
+        }
+
+        .result-icon {
+            font-size: 4rem;
+            margin-bottom: 16px;
+        }
+
+        .result-text {
+            font-size: 1.4rem;
+            font-weight: 700;
+            margin-bottom: 12px;
+            text-align: center;
+        }
+
+        .result-confidence {
+            font-size: 1rem;
+            color: var(--text-secondary);
+            margin-bottom: 16px;
+        }
+
+        .confidence-bar {
+            width: 100%;
+            height: 8px;
+            background: var(--bg-card);
+            border-radius: 4px;
+            overflow: hidden;
+            margin-top: 8px;
+        }
+
+        .confidence-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--primary), var(--secondary));
+            border-radius: 4px;
+            transition: width 0.5s ease;
+        }
+
+        .result-filename {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            margin-top: 12px;
+            font-family: 'Monaco', 'Consolas', monospace;
+        }
+
+        /* Loading Spinner */
+        .loading-spinner {
+            width: 60px;
+            height: 60px;
+            border: 4px solid var(--bg-card);
+            border-top-color: var(--primary);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        .loading-text {
+            margin-top: 16px;
+            font-size: 1rem;
+            color: var(--text-secondary);
+        }
+
+        /* Result states */
+        .detection-result.human-detected {
+            background: linear-gradient(135deg, rgba(16, 185, 129, 0.1), rgba(16, 185, 129, 0.05));
+            border: 1px solid var(--success);
+        }
+
+        .detection-result.human-detected .result-text {
+            color: var(--success);
+        }
+
+        .detection-result.no-human {
+            background: linear-gradient(135deg, rgba(239, 68, 68, 0.1), rgba(239, 68, 68, 0.05));
+            border: 1px solid var(--danger);
+        }
+
+        .detection-result.no-human .result-text {
+            color: var(--danger);
+        }
+
+        @media (max-width: 900px) {
+            .detection-content {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* Responsive */
+        @media (max-width: 1400px) {
+            .stats-grid {
+                grid-template-columns: repeat(3, 1fr);
+            }
+        }
+
+        @media (max-width: 1200px) {
+            .main-layout {
+                grid-template-columns: 1fr;
+            }
+
+            .charts-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .stats-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+            .header {
+                flex-direction: column;
+                gap: 16px;
+                text-align: center;
+            }
+        }
+
+        /* Multi-Bot Selector */
+        .bot-selector-container {
+            background: var(--bg-card);
+            border-radius: 20px;
+            border: 1px solid var(--border);
+            padding: 20px;
+            margin-bottom: 24px;
+        }
+
+        .bot-selector-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+
+        .bot-count-badge {
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-weight: 600;
+            font-size: 0.9rem;
+        }
+
+        .bot-tabs {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        .bot-tab {
+            padding: 12px 20px;
+            background: var(--bg-hover);
+            border: 2px solid transparent;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .bot-tab:hover {
+            background: rgba(99, 102, 241, 0.1);
+            border-color: var(--primary);
+            transform: translateY(-2px);
+        }
+
+        .bot-tab.active {
+            background: linear-gradient(135deg, rgba(99, 102, 241, 0.2), rgba(34, 211, 238, 0.1));
+            border-color: var(--primary);
+            box-shadow: 0 5px 20px var(--glow-primary);
+        }
+
+        .bot-tab.active .bot-tag {
+            background: var(--primary);
+        }
+
+        .bot-tag {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 32px;
+            height: 32px;
+            background: var(--bg-card);
+            border-radius: 8px;
+            font-weight: 700;
+            font-size: 0.85rem;
+            color: white;
+        }
+
+        .bot-tag-01 {
+            background: #ef4444 !important;
+        }
+
+        .bot-tag-02 {
+            background: #22c55e !important;
+        }
+
+        .bot-tag-03 {
+            background: #3b82f6 !important;
+        }
+
+        .bot-tag-04 {
+            background: #f59e0b !important;
+        }
+
+        .bot-tag-05 {
+            background: #8b5cf6 !important;
+        }
+
+        .bot-tag-06 {
+            background: #ec4899 !important;
+        }
+
+        .bot-tag-07 {
+            background: #14b8a6 !important;
+        }
+
+        .bot-tag-08 {
+            background: #f97316 !important;
+        }
+
+        .bot-name {
+            font-weight: 500;
+            color: var(--text-primary);
+        }
+
+        .bot-status {
+            width: 8px;
+            height: 8px;
+            background: var(--success);
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+
+        /* Human Detection Alert Banner */
+        .human-alert-banner {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            background: linear-gradient(135deg, #dc2626, #ef4444);
+            color: white;
+            padding: 16px 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 16px;
+            z-index: 9999;
+            box-shadow: 0 4px 20px rgba(220, 38, 38, 0.5);
+            transform: translateY(-100%);
+            transition: transform 0.5s ease;
+        }
+
+        .human-alert-banner.show {
+            transform: translateY(0);
+        }
+
+        .human-alert-banner .alert-icon {
+            font-size: 2rem;
+            animation: alertPulse 1s infinite;
+        }
+
+        .human-alert-banner .alert-content {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .human-alert-banner .alert-title {
+            font-weight: 700;
+            font-size: 1.1rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .human-alert-banner .alert-details {
+            font-size: 0.9rem;
+            opacity: 0.9;
+        }
+
+        .human-alert-banner .alert-coords {
+            font-family: 'Courier New', monospace;
+            background: rgba(0, 0, 0, 0.2);
+            padding: 4px 12px;
+            border-radius: 6px;
+            font-size: 0.95rem;
+        }
+
+        .human-alert-banner .alert-close {
+            background: rgba(255, 255, 255, 0.2);
+            border: none;
+            color: white;
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 1.2rem;
+            margin-left: auto;
+            transition: background 0.3s;
+        }
+
+        .human-alert-banner .alert-close:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+
+        @keyframes alertPulse {
+
+            0%,
+            100% {
+                transform: scale(1);
+            }
+
+            50% {
+                transform: scale(1.2);
+            }
+        }
+
+        /* Export Button */
+        .export-section {
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px solid var(--border);
+        }
+
+        .export-btn {
+            width: 100%;
+            padding: 16px 24px;
+            background: linear-gradient(135deg, #10b981, #059669);
+            border: none;
+            border-radius: 12px;
+            color: white;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            transition: all 0.3s ease;
+        }
+
+        .export-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 30px rgba(16, 185, 129, 0.3);
+        }
+
+        .export-btn:disabled {
+            background: var(--bg-hover);
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .no-bots-message {
+            text-align: center;
+            padding: 30px;
+            color: var(--text-secondary);
+        }
+
+        .no-bots-message .icon {
+            font-size: 2.5rem;
+            margin-bottom: 12px;
+            opacity: 0.5;
+        }
+    </style>
+</head>
+
+<body>
+    <!-- Welcome Overlay -->
+    <div class="welcome-overlay" id="welcomeOverlay">
+        <div class="welcome-content">
+            <div class="welcome-logo">🤖</div>
+            <h1>LoRa Bot Monitor</h1>
+            <p>Real-time sensor data visualization from your ESP32 underground bot.
+                Connect to see temperature, pressure, GPS, gas levels, and more!</p>
+
+            <div class="feature-badges">
+                <div class="badge">📡 Real-Time Data</div>
+                <div class="badge">🌡️ Environment Sensors</div>
+                <div class="badge">📍 GPS Tracking</div>
+                <div class="badge">📊 Live Charts</div>
+                <div class="badge">🎤 Audio Levels</div>
+            </div>
+
+            <button class="start-btn" onclick="startDashboard()">▶ Launch Dashboard</button>
+        </div>
+    </div>
+
+    <!-- Human Detection Alert Banner -->
+    <div class="human-alert-banner" id="humanAlertBanner">
+        <div class="alert-icon">🚨</div>
+        <div class="alert-content">
+            <div class="alert-title">Human Presence Detected!</div>
+            <div class="alert-details">Bot <span id="alertBotTag">#01</span> detected human activity</div>
+        </div>
+        <div class="alert-coords" id="alertCoords">📍 0.000000, 0.000000</div>
+        <button class="alert-close" onclick="hideHumanAlert()">✕</button>
+    </div>
+
+    <!-- Main Dashboard -->
+    <div class="container" id="mainDashboard" style="display: none;">
+        <!-- Header -->
+        <div class="header">
+            <div class="header-left">
+                <div class="header-logo">🤖</div>
+                <div>
+                    <h1>LoRa Bot Monitor</h1>
+                    <p>Underground Rescue Bot - Real-Time Telemetry</p>
+                </div>
+            </div>
+            <div class="connection-status" id="connectionStatus">
+                <div class="status-dot"></div>
+                <span id="connectionText">Disconnected</span>
+            </div>
+        </div>
+
+        <!-- Bot Selector -->
+        <div class="bot-selector-container" id="botSelectorContainer">
+            <div class="bot-selector-header">
+                <div class="panel-title">🤖 <span>Connected Bots</span></div>
+                <div class="bot-count-badge" id="botCountBadge">0 Bots Active</div>
+            </div>
+            <div class="bot-tabs" id="botTabs">
+                <div class="no-bots-message">
+                    <div class="icon">📡</div>
+                    <p>Waiting for bots to connect...</p>
+                </div>
+            </div>
+            <div class="export-section">
+                <button class="export-btn" id="exportBtn" onclick="exportToXLSX()" disabled>
+                    📊 Export Data to XLSX
+                </button>
+            </div>
+        </div>
+
+        <!-- Stats Grid -->
+        <div class="stats-grid">
+            <div class="stat-card" id="tempCard">
+                <div class="stat-icon">🌡️</div>
+                <div class="stat-label">Temperature</div>
+                <div class="stat-value"><span id="tempValue">--</span><span class="stat-unit">°C</span></div>
+                <div class="stat-sublabel">BMP280 Sensor</div>
+            </div>
+            <div class="stat-card" id="pressureCard">
+                <div class="stat-icon">💨</div>
+                <div class="stat-label">Pressure</div>
+                <div class="stat-value"><span id="pressureValue">--</span><span class="stat-unit">hPa</span></div>
+                <div class="stat-sublabel">Atmospheric</div>
+            </div>
+            <div class="stat-card" id="altitudeCard">
+                <div class="stat-icon">📏</div>
+                <div class="stat-label">Altitude</div>
+                <div class="stat-value"><span id="altitudeValue">--</span><span class="stat-unit">m</span></div>
+                <div class="stat-sublabel">From Sea Level</div>
+            </div>
+            <div class="stat-card" id="gasCard">
+                <div class="stat-icon">⚠️</div>
+                <div class="stat-label">Gas (CO)</div>
+                <div class="stat-value"><span id="gasValue">--</span><span class="stat-unit">ppm</span></div>
+                <div class="stat-sublabel">MQ-7 Sensor</div>
+            </div>
+            <div class="stat-card" id="accelCard">
+                <div class="stat-icon">📐</div>
+                <div class="stat-label">Accel Z</div>
+                <div class="stat-value"><span id="accelValue">--</span><span class="stat-unit">m/s²</span></div>
+                <div class="stat-sublabel">Motion Sensor</div>
+            </div>
+            <div class="stat-card" id="audioCard">
+                <div class="stat-icon">🎤</div>
+                <div class="stat-label">Audio RMS</div>
+                <div class="stat-value"><span id="audioValue">--</span></div>
+                <div class="stat-sublabel">Sound Level</div>
+            </div>
+        </div>
+
+        <!-- Main Layout -->
+        <div class="main-layout">
+            <!-- Left Panel - GPS & Data -->
+            <div class="data-panel">
+                <div class="panel-header">
+                    <div class="panel-title">� <span>GPS & Location Data</span></div>
+                    <div class="gps-status searching" id="gpsStatus">Searching...</div>
+                </div>
+
+                <!-- Leaflet Map Container -->
+                <div class="gps-map-container">
+                    <div id="map"></div>
+                    <div class="gps-coords-overlay">
+                        <div>Lat: <span id="latValue">13.008267</span></div>
+                        <div>Lng: <span id="lngValue">80.005501</span></div>
+                    </div>
+                </div>
+
+                <div class="panel-header" style="margin-top: 24px;">
+                    <div class="panel-title">📊 <span>Sensor Readings</span></div>
+                </div>
+
+                <div class="data-rows">
+                    <div class="data-row">
+                        <div class="data-row-left">
+                            <span class="data-row-icon">🆔</span>
+                            <span class="data-row-label">Device ID</span>
+                        </div>
+                        <span class="data-row-value" id="deviceIdValue">--</span>
+                    </div>
+                    <div class="data-row">
+                        <div class="data-row-left">
+                            <span class="data-row-icon">🌡️</span>
+                            <span class="data-row-label">Temperature</span>
+                        </div>
+                        <span class="data-row-value" id="tempRowValue">-- °C</span>
+                    </div>
+                    <div class="data-row">
+                        <div class="data-row-left">
+                            <span class="data-row-icon">💨</span>
+                            <span class="data-row-label">Pressure</span>
+                        </div>
+                        <span class="data-row-value" id="pressureRowValue">-- hPa</span>
+                    </div>
+                    <div class="data-row">
+                        <div class="data-row-left">
+                            <span class="data-row-icon">📏</span>
+                            <span class="data-row-label">Altitude</span>
+                        </div>
+                        <span class="data-row-value" id="altitudeRowValue">-- m</span>
+                    </div>
+                    <div class="data-row">
+                        <div class="data-row-left">
+                            <span class="data-row-icon">⚠️</span>
+                            <span class="data-row-label">Gas (CO)</span>
+                        </div>
+                        <span class="data-row-value" id="gasRowValue">-- ppm</span>
+                    </div>
+                    <div class="data-row">
+                        <div class="data-row-left">
+                            <span class="data-row-icon">📐</span>
+                            <span class="data-row-label">Acceleration Z</span>
+                        </div>
+                        <span class="data-row-value" id="accelRowValue">-- m/s²</span>
+                    </div>
+                    <div class="data-row">
+                        <div class="data-row-left">
+                            <span class="data-row-icon">🎤</span>
+                            <span class="data-row-label">Audio RMS</span>
+                        </div>
+                        <span class="data-row-value" id="audioRowValue">--</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Panel - Controls & Info -->
+            <div class="controls-panel">
+                <div class="control-section">
+                    <div class="control-label">Last Update</div>
+                    <div class="last-update">
+                        <div class="last-update-label">Timestamp</div>
+                        <div class="last-update-time" id="lastUpdateTime">--:--:--</div>
+                    </div>
+                </div>
+
+                <div class="control-section">
+                    <div class="control-label">Device Information</div>
+                    <div class="device-info">
+                        <div class="device-info-row">
+                            <span class="device-info-label">Device ID</span>
+                            <span class="device-info-value" id="deviceInfoId">--</span>
+                        </div>
+                        <div class="device-info-row">
+                            <span class="device-info-label">GPS Status</span>
+                            <span class="device-info-value" id="deviceInfoGps">--</span>
+                        </div>
+                        <div class="device-info-row">
+                            <span class="device-info-label">Data Points</span>
+                            <span class="device-info-value" id="dataPointCount">0</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="control-section">
+                    <div class="control-label">Data History</div>
+                    <div class="history-log" id="historyLog">
+                        <div class="no-data-message">
+                            <div class="icon">📭</div>
+                            <h3>Waiting for Data</h3>
+                            <p>Sensor readings will appear here</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Charts -->
+        <div class="charts-grid">
+            <div class="chart-container">
+                <div class="chart-title">🌡️ Temperature Over Time</div>
+                <div class="chart-wrapper">
+                    <canvas id="tempChart"></canvas>
+                </div>
+            </div>
+            <div class="chart-container">
+                <div class="chart-title">⚠️ Gas Levels Over Time</div>
+                <div class="chart-wrapper">
+                    <canvas id="gasChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Acoustic Section -->
+        <div class="acoustic-section">
+            <div class="acoustic-header">
+                <div class="panel-title">🎤 <span>Audio Level Visualization</span></div>
+                <div class="activity-badge" id="audioActivityBadge">No Activity</div>
+            </div>
+            <div class="acoustic-visualizer" id="acousticVisualizer">
+                <!-- Bars generated by JS -->
+            </div>
+        </div>
+
+        <!-- Human Detection Section -->
+        <div class="human-detection-section">
+            <div class="panel-header">
+                <div class="panel-title">🧠 <span>Human Presence Detection (AI)</span></div>
+            </div>
+            <div class="detection-content">
+                <div class="upload-zone" id="uploadZone" onclick="document.getElementById('audioFileInput').click()">
+                    <input type="file" id="audioFileInput" accept=".wav,.mp3,.flac,.ogg,.m4a,.aac,.wma,.opus"
+                        style="display: none;" onchange="handleFileSelect(event)">
+                    <div class="upload-zone-icon">🎵</div>
+                    <h3>Upload Audio File</h3>
+                    <p>Drag & drop or click to browse<br>Supports: WAV, MP3, FLAC, OGG, M4A, AAC</p>
+                    <button class="upload-btn"
+                        onclick="event.stopPropagation(); document.getElementById('audioFileInput').click()">Select
+                        File</button>
+                </div>
+                <div class="detection-result" id="detectionResult">
+                    <div class="result-icon">🔍</div>
+                    <div class="result-text">Waiting for Audio</div>
+                    <div class="result-confidence">Upload an audio file to analyze for human presence</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="footer">
+            <p>🤖 LoRa Bot Monitor • Real-Time ESP32 Telemetry Dashboard</p>
+        </div>
+    </div>
+
+    <script>
+        // Global state
+        let socket = null;
+        let isConnected = false;
+        let dataPointCount = 0;
+        const maxHistoryItems = 20;
+        const maxChartPoints = 50;
+
+        // Multi-bot state
+        let botData = {};  // {device_id: {tag, latest, chartData, history}}
+        let botList = [];  // [{device_id, tag}, ...]
+        let selectedBotId = null;  // Currently selected bot
+        let markers = {};  // {device_id: marker}
+
+        // Bot colors
+        const botColors = {
+            '01': '#ef4444', '02': '#22c55e', '03': '#3b82f6', '04': '#f59e0b',
+            '05': '#8b5cf6', '06': '#ec4899', '07': '#14b8a6', '08': '#f97316'
+        };
+        function getBotColor(tag) {
+            return botColors[tag] || '#6366f1';
+        }
+
+        // Map elements
+        let map;
+        // Default coordinates: Chennai
+        const defaultLat = 13.008267;
+        const defaultLng = 80.005501;
+
+        // Charts
+        let tempChart, gasChart;
+        const acousticBars = [];
+
+        // Start dashboard
+        function startDashboard() {
+            document.getElementById('welcomeOverlay').classList.add('hidden');
+            document.getElementById('mainDashboard').style.display = 'block';
+
+            // Allow animations to finish before initializing charts/map
+            setTimeout(() => {
+                initCharts();
+                initAcousticVisualizer();
+                initMap();
+                connectWebSocket();
+                fetchExistingBots();  // Fetch any bots that already exist
+            }, 300);
+        }
+
+        // Fetch existing bots from API
+        function fetchExistingBots() {
+            fetch('/api/bots')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.bots && data.bots.length > 0) {
+                        console.log('📥 Found existing bots:', data.bots);
+
+                        // Update bot list
+                        botList = data.bots.map(b => ({
+                            device_id: b.device_id,
+                            tag: b.tag
+                        }));
+
+                        // Process each bot's data
+                        data.bots.forEach(bot => {
+                            if (bot.latest) {
+                                processBotData(bot.device_id, bot.latest);
+                                updateBotMarker(bot.latest);
+                            }
+                        });
+
+                        // Update UI
+                        updateBotTabs();
+                        document.getElementById('exportBtn').disabled = false;
+                        document.getElementById('botCountBadge').textContent = `${botList.length} Bots Active`;
+
+                        // Select first bot if none selected
+                        if (!selectedBotId && botList.length > 0) {
+                            selectBot(botList[0].device_id);
+                        }
+                    }
+                })
+                .catch(err => console.error('Error fetching bots:', err));
+        }
+
+        // Initialize Leaflet Map
+        function initMap() {
+            // Create map instance
+            map = L.map('map').setView([defaultLat, defaultLng], 15);
+
+            // 1. Street Map Layer
+            const streetLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '© OpenStreetMap contributors',
+                maxZoom: 19
+            });
+
+            // 2. Satellite Layer (Esri WorldImagery)
+            const satelliteLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+                attribution: 'Tiles © Esri',
+                maxZoom: 19
+            });
+
+            // 3. Topo Layer (OpenTopoMap)
+            const topoLayer = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
+                attribution: '© OpenStreetMap-Mitwirkende, SRTM | Map style: © OpenTopoMap (CC-BY-SA)',
+                maxZoom: 17
+            });
+
+            // Add default layer
+            satelliteLayer.addTo(map);
+
+            // Layer control
+            const baseMaps = {
+                "Satellite": satelliteLayer,
+                "Street Map": streetLayer,
+                "Topological": topoLayer
+            };
+            L.control.layers(baseMaps).addTo(map);
+        }
+
+        // Create or update marker for a bot
+        function createBotMarker(deviceId, tag, lat, lng) {
+            const color = getBotColor(tag);
+
+            if (markers[deviceId]) {
+                // Update existing marker
+                markers[deviceId].setLatLng([lat, lng]);
+                return markers[deviceId];
+            }
+
+            // Create new marker with color-coded icon
+            const botIcon = L.divIcon({
+                className: 'custom-div-icon',
+                html: `<div style='background-color:${color}; width: 14px; height: 14px; border-radius: 50%; border: 3px solid white; box-shadow: 0 0 15px ${color}; display: flex; align-items: center; justify-content: center;'></div>
+                       <div style='position: absolute; top: -25px; left: 50%; transform: translateX(-50%); background: ${color}; color: white; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: bold; white-space: nowrap;'>#${tag}</div>`,
+                iconSize: [20, 20],
+                iconAnchor: [10, 10]
+            });
+
+            const marker = L.marker([lat, lng], { icon: botIcon }).addTo(map);
+            marker.bindPopup(`<b>🤖 Bot #${tag}</b><br>ID: ${deviceId}<br>Status: Online`);
+            markers[deviceId] = marker;
+            return marker;
+        }
+
+        // Initialize charts
+        function initCharts() {
+            const chartOptions = {
+                responsive: true,
+                maintainAspectRatio: false,
+                animation: { duration: 300 },
+                scales: {
+                    x: {
+                        grid: { color: 'rgba(148, 163, 184, 0.1)' },
+                        ticks: { color: '#94a3b8', maxTicksLimit: 8 }
+                    },
+                    y: {
+                        grid: { color: 'rgba(148, 163, 184, 0.1)' },
+                        ticks: { color: '#94a3b8' }
+                    }
+                },
+                plugins: {
+                    legend: { display: false }
+                }
+            };
+
+            // Temperature chart
+            tempChart = new Chart(document.getElementById('tempChart'), {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: 'Temperature °C',
+                        data: [],
+                        borderColor: '#f472b6',
+                        backgroundColor: 'rgba(244, 114, 182, 0.1)',
+                        fill: true,
+                        tension: 0.4,
+                        borderWidth: 2,
+                        pointRadius: 3,
+                        pointBackgroundColor: '#f472b6'
+                    }]
+                },
+                options: chartOptions
+            });
+
+            // Gas chart
+            gasChart = new Chart(document.getElementById('gasChart'), {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: 'Gas ppm',
+                        data: [],
+                        borderColor: '#f59e0b',
+                        backgroundColor: 'rgba(245, 158, 11, 0.1)',
+                        fill: true,
+                        tension: 0.4,
+                        borderWidth: 2,
+                        pointRadius: 3,
+                        pointBackgroundColor: '#f59e0b'
+                    }]
+                },
+                options: chartOptions
+            });
+        }
+
+        // Initialize acoustic visualizer
+        function initAcousticVisualizer() {
+            const visualizer = document.getElementById('acousticVisualizer');
+            for (let i = 0; i < 20; i++) {
+                const bar = document.createElement('div');
+                bar.className = 'acoustic-bar';
+                bar.style.height = '20%';
+                visualizer.appendChild(bar);
+                acousticBars.push(bar);
+            }
+        }
+
+        // Update acoustic visualizer
+        function updateAcousticVisualizer(audioRms) {
+            const rms = parseFloat(audioRms) || 0;
+            const badge = document.getElementById('audioActivityBadge');
+
+            if (rms > 50) {
+                badge.textContent = 'Active';
+                badge.classList.add('active');
+            } else {
+                badge.textContent = 'No Activity';
+                badge.classList.remove('active');
+            }
+
+            acousticBars.forEach((bar, index) => {
+                const baseHeight = (rms / 4096) * 100;
+                const variation = Math.sin(Date.now() / 100 + index * 0.5) * 20;
+                const height = Math.max(10, Math.min(100, baseHeight + variation));
+                bar.style.height = height + '%';
+            });
+        }
+
+        // Connect to WebSocket
+        function connectWebSocket() {
+            // Connect to same host
+            const wsUrl = `http://${window.location.hostname}:5000`;
+            console.log('Connecting to:', wsUrl);
+
+            socket = io(wsUrl, {
+                transports: ['websocket', 'polling'],
+                reconnection: true,
+                reconnectionDelay: 1000,
+                reconnectionAttempts: 10
+            });
+
+            socket.on('connect', () => {
+                console.log('✅ WebSocket connected!');
+                isConnected = true;
+                updateConnectionStatus(true);
+            });
+
+            socket.on('disconnect', () => {
+                console.log('❌ WebSocket disconnected');
+                isConnected = false;
+                updateConnectionStatus(false);
+            });
+
+            socket.on('connect_error', (error) => {
+                console.log('⚠️ Connection error:', error);
+                isConnected = false;
+                updateConnectionStatus(false);
+            });
+
+            // Handle initial data on connect
+            socket.on('init_data', (payload) => {
+                console.log('📥 Initial bot data:', payload);
+                botList = payload.bot_list || [];
+                updateBotTabs();
+
+                // Process all latest data
+                if (payload.all_latest) {
+                    for (const [deviceId, data] of Object.entries(payload.all_latest)) {
+                        processBotData(deviceId, data);
+                    }
+                }
+
+                // Select first bot if none selected
+                if (!selectedBotId && botList.length > 0) {
+                    selectBot(botList[0].device_id);
+                }
+
+                document.getElementById('exportBtn').disabled = botList.length === 0;
+            });
+
+            // Handle sensor data updates
+            socket.on('sensor_data', (payload) => {
+                console.log('📡 Received sensor data:', payload);
+
+                // Update bot list
+                botList = payload.bot_list || botList;
+                updateBotTabs();
+
+                // Process the data
+                const data = payload.data;
+                if (data && data.device_id) {
+                    processBotData(data.device_id, data);
+
+                    // Auto-select first bot
+                    if (!selectedBotId) {
+                        selectBot(data.device_id);
+                    }
+
+                    // Update display if this is the selected bot
+                    if (data.device_id === selectedBotId) {
+                        updateDashboard(data);
+                    }
+
+                    // Always update map markers for all bots
+                    updateBotMarker(data);
+
+                    // Check for human detection
+                    if (data.human_detected === true || data.human_detected === 'true') {
+                        showHumanAlert(data.bot_tag || '??', data.lat, data.lng);
+                    }
+                }
+
+                document.getElementById('exportBtn').disabled = botList.length === 0;
+                document.getElementById('botCountBadge').textContent = `${payload.active_bots || botList.length} Bots Active`;
+            });
+        }
+
+        // Show human detection alert
+        function showHumanAlert(botTag, lat, lng) {
+            const banner = document.getElementById('humanAlertBanner');
+            document.getElementById('alertBotTag').textContent = `#${botTag}`;
+            document.getElementById('alertCoords').textContent = `📍 ${parseFloat(lat).toFixed(6)}, ${parseFloat(lng).toFixed(6)}`;
+            banner.classList.add('show');
+
+            // Play alert sound (optional beep)
+            try {
+                const audio = new AudioContext();
+                const oscillator = audio.createOscillator();
+                oscillator.type = 'sine';
+                oscillator.frequency.value = 800;
+                oscillator.connect(audio.destination);
+                oscillator.start();
+                setTimeout(() => oscillator.stop(), 200);
+            } catch (e) { }
+
+            // Auto-hide after 10 seconds
+            setTimeout(() => hideHumanAlert(), 10000);
+        }
+
+        // Hide human detection alert
+        function hideHumanAlert() {
+            document.getElementById('humanAlertBanner').classList.remove('show');
+        }
+
+        // Process and store bot data
+        function processBotData(deviceId, data) {
+            if (!botData[deviceId]) {
+                botData[deviceId] = {
+                    tag: data.bot_tag || '00',
+                    latest: null,
+                    chartData: { labels: [], temperature: [], gas: [] },
+                    history: []
+                };
+            }
+
+            botData[deviceId].latest = data;
+            botData[deviceId].history.push(data);
+
+            // Trim history
+            if (botData[deviceId].history.length > maxHistoryItems) {
+                botData[deviceId].history = botData[deviceId].history.slice(-maxHistoryItems);
+            }
+
+            // Update chart data
+            const timestamp = data.timestamp ? data.timestamp.split(' ')[1] : new Date().toLocaleTimeString();
+            botData[deviceId].chartData.labels.push(timestamp);
+            botData[deviceId].chartData.temperature.push(parseFloat(data.temperature) || 0);
+            botData[deviceId].chartData.gas.push(parseFloat(data.gas_co_ppm) || 0);
+
+            // Trim chart data
+            if (botData[deviceId].chartData.labels.length > maxChartPoints) {
+                botData[deviceId].chartData.labels.shift();
+                botData[deviceId].chartData.temperature.shift();
+                botData[deviceId].chartData.gas.shift();
+            }
+        }
+
+        // Update bot tabs UI
+        function updateBotTabs() {
+            const tabsContainer = document.getElementById('botTabs');
+            const countBadge = document.getElementById('botCountBadge');
+
+            if (botList.length === 0) {
+                tabsContainer.innerHTML = `
+                    <div class="no-bots-message">
+                        <div class="icon">📡</div>
+                        <p>Waiting for bots to connect...</p>
+                    </div>
+                `;
+                countBadge.textContent = '0 Bots Active';
+                return;
+            }
+
+            countBadge.textContent = `${botList.length} Bots Active`;
+
+            tabsContainer.innerHTML = botList.map(bot => `
+                <div class="bot-tab ${bot.device_id === selectedBotId ? 'active' : ''}" 
+                     onclick="selectBot('${bot.device_id}')">
+                    <div class="bot-tag bot-tag-${bot.tag}">#${bot.tag}</div>
+                    <span class="bot-name">${bot.device_id}</span>
+                    <div class="bot-status"></div>
+                </div>
+            `).join('');
+        }
+
+        // Select a bot
+        function selectBot(deviceId) {
+            selectedBotId = deviceId;
+            updateBotTabs();
+
+            // Update dashboard with this bot's data
+            if (botData[deviceId] && botData[deviceId].latest) {
+                updateDashboard(botData[deviceId].latest);
+                updateChartsForBot(deviceId);
+                updateHistoryForBot(deviceId);
+            }
+
+            // Pan map to this bot's location
+            if (markers[deviceId]) {
+                map.panTo(markers[deviceId].getLatLng());
+            }
+        }
+
+        // Update charts for selected bot
+        function updateChartsForBot(deviceId) {
+            if (!botData[deviceId]) return;
+
+            const data = botData[deviceId].chartData;
+            tempChart.data.labels = data.labels;
+            tempChart.data.datasets[0].data = data.temperature;
+            gasChart.data.labels = data.labels;
+            gasChart.data.datasets[0].data = data.gas;
+            tempChart.update('none');
+            gasChart.update('none');
+        }
+
+        // Update history for selected bot
+        function updateHistoryForBot(deviceId) {
+            if (!botData[deviceId]) return;
+
+            const historyLog = document.getElementById('historyLog');
+            historyLog.innerHTML = '';
+
+            botData[deviceId].history.slice().reverse().forEach(data => {
+                const item = document.createElement('div');
+                item.className = 'history-item';
+                item.innerHTML = `
+                    <div class="history-timestamp">${data.timestamp || ''}</div>
+                    <div class="history-data">
+                        Temp: ${parseFloat(data.temperature || 0).toFixed(1)}°C | 
+                        Gas: ${parseFloat(data.gas_co_ppm || 0).toFixed(0)}ppm | 
+                        Alt: ${parseFloat(data.altitude || 0).toFixed(1)}m
+                    </div>
+                `;
+                historyLog.appendChild(item);
+            });
+        }
+
+        // Update bot marker on map
+        function updateBotMarker(data) {
+            const gpsValid = data.gps_valid === 'true' || data.gps_valid === true;
+            if (gpsValid && data.lat && data.lng) {
+                const lat = parseFloat(data.lat);
+                const lng = parseFloat(data.lng);
+                createBotMarker(data.device_id, data.bot_tag, lat, lng);
+            }
+        }
+
+        // Export to XLSX
+        function exportToXLSX() {
+            window.location.href = '/api/export';
+        }
+
+        // Update connection status
+        function updateConnectionStatus(connected) {
+            const statusEl = document.getElementById('connectionStatus');
+            const textEl = document.getElementById('connectionText');
+
+            if (connected) {
+                statusEl.classList.add('connected');
+                textEl.textContent = 'Connected';
+            } else {
+                statusEl.classList.remove('connected');
+                textEl.textContent = 'Disconnected';
+            }
+        }
+
+        // Flash animation for updated cards
+        function flashCard(cardId) {
+            const card = document.getElementById(cardId);
+            if (card) {
+                card.classList.add('updated');
+                setTimeout(() => card.classList.remove('updated'), 500);
+            }
+        }
+
+        // Update dashboard with new data
+        function updateDashboard(data) {
+            dataPointCount++;
+            document.getElementById('dataPointCount').textContent = dataPointCount;
+
+            // Update stat cards
+            if (data.temperature !== undefined) {
+                document.getElementById('tempValue').textContent = parseFloat(data.temperature).toFixed(1);
+                document.getElementById('tempRowValue').textContent = parseFloat(data.temperature).toFixed(1) + ' °C';
+                flashCard('tempCard');
+            }
+
+            if (data.pressure !== undefined) {
+                document.getElementById('pressureValue').textContent = parseFloat(data.pressure).toFixed(1);
+                document.getElementById('pressureRowValue').textContent = parseFloat(data.pressure).toFixed(1) + ' hPa';
+                flashCard('pressureCard');
+            }
+
+            if (data.altitude !== undefined) {
+                document.getElementById('altitudeValue').textContent = parseFloat(data.altitude).toFixed(1);
+                document.getElementById('altitudeRowValue').textContent = parseFloat(data.altitude).toFixed(1) + ' m';
+                flashCard('altitudeCard');
+            }
+
+            if (data.gas_co_ppm !== undefined) {
+                document.getElementById('gasValue').textContent = parseFloat(data.gas_co_ppm).toFixed(0);
+                document.getElementById('gasRowValue').textContent = parseFloat(data.gas_co_ppm).toFixed(0) + ' ppm';
+                flashCard('gasCard');
+            }
+
+            if (data.accel_z !== undefined) {
+                document.getElementById('accelValue').textContent = parseFloat(data.accel_z).toFixed(2);
+                document.getElementById('accelRowValue').textContent = parseFloat(data.accel_z).toFixed(2) + ' m/s²';
+                flashCard('accelCard');
+            }
+
+            if (data.audio_rms !== undefined) {
+                document.getElementById('audioValue').textContent = parseFloat(data.audio_rms).toFixed(0);
+                document.getElementById('audioRowValue').textContent = parseFloat(data.audio_rms).toFixed(0);
+                flashCard('audioCard');
+                updateAcousticVisualizer(data.audio_rms);
+            }
+
+            // Update device info with bot tag
+            if (data.device_id) {
+                const botTag = data.bot_tag ? ` (#${data.bot_tag})` : '';
+                document.getElementById('deviceIdValue').textContent = data.device_id + botTag;
+                document.getElementById('deviceInfoId').textContent = data.device_id + botTag;
+            }
+
+            // Update GPS
+            const gpsStatus = document.getElementById('gpsStatus');
+            const gpsValid = data.gps_valid === 'true' || data.gps_valid === true;
+
+            if (gpsValid && data.lat && data.lng) {
+                const lat = parseFloat(data.lat);
+                const lng = parseFloat(data.lng);
+
+                gpsStatus.textContent = 'GPS Fixed';
+                gpsStatus.classList.remove('searching');
+                gpsStatus.classList.add('valid');
+                document.getElementById('deviceInfoGps').textContent = 'Fixed';
+
+                document.getElementById('latValue').textContent = lat.toFixed(6);
+                document.getElementById('lngValue').textContent = lng.toFixed(6);
+            } else {
+                gpsStatus.textContent = 'Searching...';
+                gpsStatus.classList.remove('valid');
+                gpsStatus.classList.add('searching');
+                document.getElementById('deviceInfoGps').textContent = 'Searching';
+            }
+
+            // Update timestamp
+            if (data.timestamp) {
+                const time = data.timestamp.split(' ')[1] || data.timestamp;
+                document.getElementById('lastUpdateTime').textContent = time;
+            } else {
+                document.getElementById('lastUpdateTime').textContent = new Date().toLocaleTimeString();
+            }
+
+            // Update charts and history for selected bot
+            if (data.device_id === selectedBotId) {
+                updateChartsForBot(data.device_id);
+                updateHistoryForBot(data.device_id);
+            }
+        }
+
+        // Acoustic animation loop
+        function animateAcoustic() {
+            if (isConnected) {
+                // Light passive animation when connected but no recent audio
+                acousticBars.forEach((bar, index) => {
+                    const currentHeight = parseFloat(bar.style.height);
+                    const targetHeight = 15 + Math.sin(Date.now() / 500 + index * 0.3) * 10;
+                    bar.style.height = Math.max(10, targetHeight) + '%';
+                });
+            }
+            requestAnimationFrame(animateAcoustic);
+        }
+
+        // Start acoustic animation
+        animateAcoustic();
+
+        // ============================================
+        // HUMAN DETECTION FUNCTIONS
+        // ============================================
+
+        // Setup drag and drop
+        const uploadZone = document.getElementById('uploadZone');
+
+        uploadZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadZone.classList.add('dragover');
+        });
+
+        uploadZone.addEventListener('dragleave', () => {
+            uploadZone.classList.remove('dragover');
+        });
+
+        uploadZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadZone.classList.remove('dragover');
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                analyzeAudioFile(files[0]);
+            }
+        });
+
+        function handleFileSelect(event) {
+            const file = event.target.files[0];
+            if (file) {
+                analyzeAudioFile(file);
+            }
+        }
+
+        function analyzeAudioFile(file) {
+            const resultDiv = document.getElementById('detectionResult');
+
+            // Show loading state
+            resultDiv.className = 'detection-result';
+            resultDiv.innerHTML = `
+                <div class="loading-spinner"></div>
+                <div class="loading-text">Processing...</div>
+                <div class="result-filename">${file.name}</div>
+            `;
+
+            // Create form data
+            const formData = new FormData();
+            formData.append('audio', file);
+
+            // Send to API
+            fetch('/api/detect-human', {
+                method: 'POST',
+                body: formData
+            })
+                .then(response => response.json())
+                .then(data => {
+                    displayDetectionResult(data);
+                })
+                .catch(error => {
+                    console.error('Detection error:', error);
+                    resultDiv.innerHTML = `
+                    <div class="result-icon">❌</div>
+                    <div class="result-text">Error</div>
+                    <div class="result-confidence">${error.message || 'Failed to analyze audio'}</div>
+                `;
+                });
+        }
+
+        function displayDetectionResult(data) {
+            const resultDiv = document.getElementById('detectionResult');
+
+            if (data.status === 'error') {
+                resultDiv.className = 'detection-result';
+                resultDiv.innerHTML = `
+                    <div class="result-icon">⚠️</div>
+                    <div class="result-text">Error</div>
+                    <div class="result-confidence">${data.message}</div>
+                `;
+                return;
+            }
+
+            const isHuman = data.is_human_detected;
+            const confidence = data.confidence || 0;
+            const filename = data.filename || 'Unknown file';
+            const duration = data.duration_seconds || 0;
+
+            resultDiv.className = `detection-result ${isHuman ? 'human-detected' : 'no-human'}`;
+            resultDiv.innerHTML = `
+                <div class="result-icon">${isHuman ? '✅' : '❌'}</div>
+                <div class="result-text">${isHuman ? 'HUMAN DETECTED' : 'NO HUMAN DETECTED'}</div>
+                <div class="result-confidence">
+                    Confidence: ${confidence.toFixed(1)}%
+                    <div class="confidence-bar">
+                        <div class="confidence-fill" style="width: ${Math.min(confidence, 100)}%"></div>
+                    </div>
+                </div>
+                <div class="result-filename">${filename} (${duration.toFixed(1)}s)</div>
+            `;
+        }
+    </script>
+</body>
+
+</html>
